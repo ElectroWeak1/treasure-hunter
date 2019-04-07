@@ -143,6 +143,7 @@ class MainController : Initializable, CoroutineScope by MainScope() {
         mutationTextField.isDisable = disable
         crossoverComboBox.isDisable = disable
         variableMutationCheckBox.isDisable = disable
+        solutionCheckBox.isDisable = disable
         if (!disable) {
             eliteClonesTextField.disableProperty().bind(eliteCheckbox.selectedProperty().not())
         }
