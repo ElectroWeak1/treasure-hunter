@@ -1,3 +1,3 @@
 rootProject.name = "treasure-hunter"
 
-include("evolution-algo")
+include("evolution-algo", "gui")

@@ -2,10 +2,13 @@ package sk.stuba.fiit.ui.treasure
 
 import sk.stuba.fiit.ui.treasure.evolution.EvolutionEngine
 import sk.stuba.fiit.ui.treasure.evolution.FitnessResult
-import sk.stuba.fiit.ui.treasure.virtualmachine.*
-import sk.stuba.fiit.ui.treasure.world.InvalidPathException
+import sk.stuba.fiit.ui.treasure.virtualmachine.Memory
+import sk.stuba.fiit.ui.treasure.virtualmachine.Program
+import sk.stuba.fiit.ui.treasure.virtualmachine.VirtualMachine
 import sk.stuba.fiit.ui.treasure.world.Path
 import sk.stuba.fiit.ui.treasure.world.buildWorld
+
+const val CHROMOSOME_LENGTH = 64
 
 fun main() {
     var count = 0
@@ -21,10 +24,10 @@ fun main() {
         placeTreasure(5, 4)
         placeTreasureHunter(6, 3)
     }
-    val engine = EvolutionEngine(200, 64, 0.1f, 5) {
+    val engine = EvolutionEngine(200, CHROMOSOME_LENGTH, 0.1f, 10) {
         val world = originalWorld.pool.take()
 
-        val vm = VirtualMachine(Memory(64, it.genes))
+        val vm = VirtualMachine(Memory(CHROMOSOME_LENGTH, it.genes))
         vm.execute()
 
         val path = Path.fromString(vm.programOutput)
