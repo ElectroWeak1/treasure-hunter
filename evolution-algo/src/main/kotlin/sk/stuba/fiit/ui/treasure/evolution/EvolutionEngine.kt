@@ -62,7 +62,7 @@ class EvolutionEngine(
                     }
 
                     if (sameFitnessCount >= 10000) {
-                        if (population.generation % 2000 == 0) {
+                        if (population.generation % 3000 == 0) {
                             if (mutationVariation < 0.5f) {
                                 mutationVariation += 0.01f
                             }

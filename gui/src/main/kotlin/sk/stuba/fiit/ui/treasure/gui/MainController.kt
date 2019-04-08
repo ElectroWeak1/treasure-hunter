@@ -10,10 +10,10 @@ import javafx.scene.control.*
 import javafx.scene.layout.AnchorPane
 import javafx.util.converter.NumberStringConverter
 import kotlinx.coroutines.*
-import sk.stuba.fiit.ui.treasure.evolution.selection.SelectionMethod
-import sk.stuba.fiit.ui.treasure.evolution.selection.TournamentSelection
 import java.net.URL
 import java.util.*
+import javafx.scene.control.Alert.AlertType
+import javafx.scene.control.Alert
 
 enum class CrossoverMethod {
     TOURNAMENT, ROULETTE
@@ -36,6 +36,7 @@ class MainController : Initializable, CoroutineScope by MainScope() {
     lateinit var generationColumn: TableColumn<History, Int>
     lateinit var fitnessColumn: TableColumn<History, Int>
 
+    lateinit var showEachTextField: TextField
     lateinit var populationSizeTextField: TextField
     lateinit var chromosomeSizeTextField: TextField
     lateinit var eliteCheckbox: CheckBox
@@ -45,6 +46,8 @@ class MainController : Initializable, CoroutineScope by MainScope() {
     lateinit var crossoverComboBox: ComboBox<CrossoverSelection>
     lateinit var variableMutationCheckBox: CheckBox
     lateinit var solutionCheckBox: CheckBox
+    lateinit var fitnessStopCheckBox: CheckBox
+    lateinit var fitnessStopTextField: TextField
 
     lateinit var generationLabel: Label
     lateinit var fitnessLabel: Label
@@ -62,6 +65,7 @@ class MainController : Initializable, CoroutineScope by MainScope() {
         mutationSlider.valueProperty().addListener { _, _, value -> mutationSlider.value = value.toInt().toDouble() }
         mutationTextField.textProperty().bindBidirectional(mutationSlider.valueProperty(), NumberStringConverter())
         eliteClonesTextField.disableProperty().bind(eliteCheckbox.selectedProperty().not())
+        fitnessStopTextField.disableProperty().bind(fitnessStopCheckBox.selectedProperty().not())
 
         val crossoverItems = FXCollections.observableArrayList<CrossoverSelection>(
                 CrossoverSelection(CrossoverMethod.TOURNAMENT, "Tournament"),
@@ -74,48 +78,68 @@ class MainController : Initializable, CoroutineScope by MainScope() {
     }
 
     fun onRunButtonClick(event: ActionEvent) {
-        clear()
         setDisableControls(true)
         launch(Dispatchers.Default) {
-            val populationSize = populationSizeTextField.text.toInt()
-            val chromosomeSize = chromosomeSizeTextField.text.toInt()
-            val mutationChance = (mutationSlider.value / 100.0).toFloat()
-            val eliteClones = if (eliteCheckbox.isSelected) eliteClonesTextField.text.toInt() else 0
-            val crossoverMethod = crossoverComboBox.value.selection
-            val variableMutation = variableMutationCheckBox.isSelected
-            val endAfterSolution = solutionCheckBox.isSelected
-            val result = evolutionHelper.run(
-                    populationSize,
-                    chromosomeSize,
-                    mutationChance,
-                    eliteClones,
-                    crossoverMethod,
-                    variableMutation,
-                    endAfterSolution,
-                    { best, generation, path ->
-                val pathString = path.joinToString()
-                historyData.add(History(generation, best, pathString))
-                historyTable.sort()
+            withContext(Dispatchers.Main) {
+                clear()
+            }
+            try {
+                val populationSize = populationSizeTextField.text.toInt()
+                val chromosomeSize = chromosomeSizeTextField.text.toInt()
+                val mutationChance = (mutationSlider.value / 100.0).toFloat()
+                val eliteClones = if (eliteCheckbox.isSelected) eliteClonesTextField.text.toInt() else 0
+                val crossoverMethod = crossoverComboBox.value.selection
+                val variableMutation = variableMutationCheckBox.isSelected
+                val endAfterSolution = solutionCheckBox.isSelected
+                val fitnessLimit = if (fitnessStopCheckBox.isSelected) fitnessStopTextField.text.toInt() else -1
+                val showEach = showEachTextField.text.toInt()
+                val result = evolutionHelper.run(
+                        populationSize,
+                        chromosomeSize,
+                        mutationChance,
+                        eliteClones,
+                        crossoverMethod,
+                        variableMutation,
+                        endAfterSolution,
+                        fitnessLimit,
+                        showEach,
+                        { best, generation, path ->
+                            val pathString = path.joinToString()
+                            historyData.add(History(generation, best, pathString))
+                            historyTable.sort()
 
-                generationLabel.text = generation.toString()
-                fitnessLabel.text = best.toString()
-                outputLabel.text = pathString
-            }, {
-                graphHelper.bestSeries.data.add(XYChart.Data(it.generation, it.fitnessBest))
-                graphHelper.averageSeries.data.add(XYChart.Data(it.generation, it.fitnessAverage))
-                graphHelper.worstSeries.data.add(XYChart.Data(it.generation, it.fitnessWorst))
-            }, {
-                mutationVarianceLabel.text = "${(it * 100).toInt()} %"
-            }).await()
+                            generationLabel.text = generation.toString()
+                            fitnessLabel.text = best.toString()
+                            outputLabel.text = pathString
+                        }, {
+                    graphHelper.bestSeries.data.add(XYChart.Data(it.generation, it.fitnessBest))
+                    graphHelper.averageSeries.data.add(XYChart.Data(it.generation, it.fitnessAverage))
+                    graphHelper.worstSeries.data.add(XYChart.Data(it.generation, it.fitnessWorst))
+                }, {
+                    mutationVarianceLabel.text = "${(it * 100).toInt()} %"
+                }).await()
+                withContext(Dispatchers.Main) {
+                    graphHelper.bestSeries.data.add(XYChart.Data(result.generation, result.fitnessBest))
+                    graphHelper.averageSeries.data.add(XYChart.Data(result.generation, result.fitnessAverage))
+                    graphHelper.worstSeries.data.add(XYChart.Data(result.generation, result.fitnessWorst))
 
+                    generationLabel.text = result.generation.toString()
+                    fitnessLabel.text = result.fitnessBest.toString()
+                    outputLabel.text = historyData[0].path
+                }
+            } catch (exception: NumberFormatException) {
+                withContext(Dispatchers.Main) {
+                    val alert = Alert(AlertType.ERROR)
+                    alert.title = "Wrong input"
+                    alert.headerText = "Wrong values in details"
+                    alert.contentText = "Please check and fix your input values"
+
+                    alert.showAndWait()
+                }
+            }
             withContext(Dispatchers.Main) {
                 runButton.isDisable = false
                 stopButton.isDisable = true
-
-                generationLabel.text = result.generation.toString()
-                fitnessLabel.text = result.fitnessBest.toString()
-                outputLabel.text = historyData[0].path
-
                 setDisableControls(false)
             }
         }
@@ -134,7 +158,9 @@ class MainController : Initializable, CoroutineScope by MainScope() {
     private fun setDisableControls(disable: Boolean) {
         if (disable) {
             eliteClonesTextField.disableProperty().unbind()
+            fitnessStopTextField.disableProperty().unbind()
         }
+        showEachTextField.isDisable = disable
         populationSizeTextField.isDisable = disable
         chromosomeSizeTextField.isDisable = disable
         eliteCheckbox.isDisable = disable
@@ -144,13 +170,18 @@ class MainController : Initializable, CoroutineScope by MainScope() {
         crossoverComboBox.isDisable = disable
         variableMutationCheckBox.isDisable = disable
         solutionCheckBox.isDisable = disable
+        fitnessStopCheckBox.isDisable = disable
+        fitnessStopTextField.isDisable = disable
         if (!disable) {
             eliteClonesTextField.disableProperty().bind(eliteCheckbox.selectedProperty().not())
+            fitnessStopTextField.disableProperty().bind(fitnessStopCheckBox.selectedProperty().not())
         }
     }
 
     private fun clear() {
+        fitnessChart.animated = false
         graphHelper.reset()
+        fitnessChart.animated = true
         historyData.clear()
         generationLabel.text = "0"
         fitnessLabel.text = "0"

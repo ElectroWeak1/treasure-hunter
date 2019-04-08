@@ -37,6 +37,8 @@ class EvolutionHelper(private val scope: CoroutineScope) {
             crossoverMethod: CrossoverMethod,
             variableMutation: Boolean,
             endAfterSolution: Boolean,
+            fitnessLimit: Int,
+            showEach: Int,
             onNewBest: (Int, Int, List<Operator>) -> Unit = { _, _, _ -> },
             onGraphUpdate: (EvolutionGraphData) -> Unit = {},
             onMutationChange: (Float) -> Unit = {}
@@ -67,7 +69,7 @@ class EvolutionHelper(private val scope: CoroutineScope) {
                 val treasures = world.treasureCount
                 originalWorld.pool.give(world)
 
-                if (collected >= treasures && endAfterSolution) {
+                if ((collected >= treasures && endAfterSolution) || (fitnessLimit != -1 && fitness >= fitnessLimit)) {
                     FitnessResult.Success(fitness)
                 } else {
                     FitnessResult.Next(fitness)
@@ -90,12 +92,12 @@ class EvolutionHelper(private val scope: CoroutineScope) {
                         it.chromosomes.minBy { it.fitness }!!.fitness
                 )
             }?.onEach {
-                if (it.generation % 250 == 0) {
+                if (it.generation % showEach == 0) {
                     launch(Dispatchers.Main) {
                         onGraphUpdate(it)
                     }
                 }
-            }?.maxBy { it.fitnessBest }!!
+            }?.last()!!
             result
         }
     }
