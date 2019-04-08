@@ -3,17 +3,20 @@ package sk.stuba.fiit.ui.treasure.evolution
 import kotlinx.coroutines.*
 import sk.stuba.fiit.ui.treasure.evolution.selection.SelectionMethod
 import sk.stuba.fiit.ui.treasure.evolution.selection.TournamentSelection
+import java.util.*
 
 class EvolutionEngine(
-    private val populationSize: Int,
-    private val chromosomeSize: Int,
-    private val mutationChance: Float = 0.05f,
-    private val eliteClones: Int = 1,
-    private val variableMutation: Boolean = false,
-    private val fitnessFunction: suspend (Chromosome) -> FitnessResult
+        private val populationSize: Int,
+        private val chromosomeSize: Int,
+        private val mutationChance: Float = 0.05f,
+        private val eliteClones: Int = 1,
+        private val variableMutation: Boolean = false,
+        private val fitnessFunction: suspend (Chromosome) -> FitnessResult
 ) {
     var selectionMethod: SelectionMethod = TournamentSelection(3)
     var isRunning = false
+    private val variableMutationThreshold = 2_000_000 / populationSize
+    private val variableMutationStep = 600_000 / populationSize
     private var sameFitnessCount = 0
     private var lastFitness = 0
     private var mutationVariation = 0.0f
@@ -22,17 +25,17 @@ class EvolutionEngine(
     private fun computeFitness(population: Population): Boolean {
         var success = false
         runBlocking {
-            val jobs = mutableListOf<Job>()
+                        val jobs = mutableListOf<Job>()
             population.chromosomes.forEach {
-                jobs += launch(Dispatchers.Default) {
-                    val fitnessResult = fitnessFunction(it)
-                    when (fitnessResult) {
-                        is FitnessResult.Next -> it.fitness = fitnessResult.fitness
-                        is FitnessResult.Success -> {
-                            it.fitness = fitnessResult.fitness
-                            success = true
-                        }
+                                jobs += launch(Dispatchers.Default) {
+                val fitnessResult = fitnessFunction(it)
+                when (fitnessResult) {
+                    is FitnessResult.Next -> it.fitness = fitnessResult.fitness
+                    is FitnessResult.Success -> {
+                        it.fitness = fitnessResult.fitness
+                        success = true
                     }
+                }
                 }
             }
             jobs.forEach { it.join() }
@@ -61,20 +64,19 @@ class EvolutionEngine(
                         lastFitness = bestFitness
                     }
 
-                    if (sameFitnessCount >= 10000) {
-                        if (population.generation % 3000 == 0) {
+                    if (sameFitnessCount >= variableMutationThreshold) {
+                        if (population.generation % variableMutationStep == 0) {
                             if (mutationVariation < 0.5f) {
                                 mutationVariation += 0.01f
                             }
                             mutationListener(mutationVariation)
                         }
                     }
-
-                    val offsprings = mutableListOf<Chromosome>()
-                    repeat(eliteClones) {
+                    val offsprings = Collections.synchronizedList(ArrayList<Chromosome>(populationSize))
+                    repeatConcurrent(eliteClones) {
                         offsprings += population.chromosomes.filter { !offsprings.contains(it) }.maxBy { it.fitness }!!.copy()
                     }
-                    while (offsprings.size < populationSize) {
+                    repeatConcurrent(populationSize - offsprings.size) {
                         val first = selectionMethod.select(population)
                         val second = selectionMethod.select(population)
                         val offspring = first.crossover(second)
@@ -100,5 +102,15 @@ class EvolutionEngine(
 
     fun setOnMutationChange(mutationListener: (Float) -> Unit) {
         this.mutationListener = mutationListener
+    }
+
+    private fun repeatConcurrent(times: Int, dispatcher: CoroutineDispatcher = Dispatchers.Default, block: () -> Unit) {
+        runBlocking {
+            val jobs = mutableListOf<Job>()
+            repeat(times) {
+                jobs += launch(dispatcher) { block() }
+            }
+            jobs.forEach { it.join() }
+        }
     }
 }

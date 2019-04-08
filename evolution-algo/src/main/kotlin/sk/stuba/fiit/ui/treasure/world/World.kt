@@ -2,7 +2,9 @@ package sk.stuba.fiit.ui.treasure.world
 
 import sk.stuba.fiit.ui.treasure.deepCopy
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
 import kotlin.collections.ArrayList
+import kotlin.concurrent.withLock
 
 class World(
     private val originalMap: Array<Array<Tile>>,
@@ -12,16 +14,19 @@ class World(
     val pool = Pool(this)
 
     class Pool(val world: World) {
+        private val lock = ReentrantLock()
         private val pool = Stack<World>()
 
         fun take(): World {
-            if (pool.empty()) {
-                return world.copy()
+            lock.withLock {
+                if (pool.empty()) {
+                    return world.copy()
+                }
+                return pool.pop()
             }
-            return pool.pop()
         }
 
-        fun give(world: World) = pool.push(world)
+        fun give(world: World) = lock.withLock { pool.push(world) }
     }
 
     val rows = originalMap.size

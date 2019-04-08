@@ -27,6 +27,7 @@ class MainController : Initializable, CoroutineScope by MainScope() {
     lateinit var historyPane: AnchorPane
     lateinit var mainPane: ScrollPane
     lateinit var detailsPane: AnchorPane
+    lateinit var clearButton: Button
     lateinit var runButton: Button
     lateinit var stopButton: Button
     lateinit var fitnessChart: LineChart<Int, Int>
@@ -172,6 +173,7 @@ class MainController : Initializable, CoroutineScope by MainScope() {
         solutionCheckBox.isDisable = disable
         fitnessStopCheckBox.isDisable = disable
         fitnessStopTextField.isDisable = disable
+        clearButton.isDisable = disable
         if (!disable) {
             eliteClonesTextField.disableProperty().bind(eliteCheckbox.selectedProperty().not())
             fitnessStopTextField.disableProperty().bind(fitnessStopCheckBox.selectedProperty().not())
