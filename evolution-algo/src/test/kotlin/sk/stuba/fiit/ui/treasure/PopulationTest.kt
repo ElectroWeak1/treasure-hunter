@@ -17,7 +17,7 @@ class PopulationTest {
             }
         }
         val result = engine.stream().maxBy { it.chromosome.fitness }!!
-        println("${result.chromosome}\nGeneration: ${result.population.generation}")
+        println("${result.chromosome}\nGeneration: ${result.step.population.generation}")
         assertEquals(16, result.chromosome.fitness)
     }
 

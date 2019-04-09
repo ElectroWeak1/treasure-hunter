@@ -6,6 +6,11 @@ data class Chromosome(
     val genes: IntArray,
     var fitness: Int = NO_FITNESS
 ) {
+    var dataHolder: Any? = null
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T> data(): T = dataHolder as T
+
     fun crossover(other: Chromosome): Chromosome {
         val crossoverPoint = Random.nextInt(genes.size)
         val offspringGenes = IntArray(genes.size) {

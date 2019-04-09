@@ -55,7 +55,7 @@ class MainController : Initializable, CoroutineScope by MainScope() {
     lateinit var mutationVarianceLabel: Label
     lateinit var outputLabel: Label
 
-    private val evolutionHelper = EvolutionHelper(this)
+    private val evolutionHelper = EvolutionHelper()
     private val historyData = FXCollections.observableArrayList<History>()
 
     override fun initialize(location: URL?, resources: ResourceBundle?) {

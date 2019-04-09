@@ -1,21 +1,15 @@
 package sk.stuba.fiit.ui.treasure
 
 import sk.stuba.fiit.ui.treasure.evolution.EvolutionEngine
-import sk.stuba.fiit.ui.treasure.evolution.FitnessResult
+import sk.stuba.fiit.ui.treasure.evolution.EvolutionStep
 import sk.stuba.fiit.ui.treasure.virtualmachine.Memory
 import sk.stuba.fiit.ui.treasure.virtualmachine.Program
 import sk.stuba.fiit.ui.treasure.virtualmachine.VirtualMachine
+import sk.stuba.fiit.ui.treasure.world.Operator
 import sk.stuba.fiit.ui.treasure.world.Path
 import sk.stuba.fiit.ui.treasure.world.buildWorld
 
-const val CHROMOSOME_LENGTH = 64
-
 fun main() {
-    var count = 0
-    var best = 0
-    val startTime = System.currentTimeMillis()
-    var time = System.currentTimeMillis()
-
     val originalWorld = buildWorld(7, 7) {
         placeTreasure(1, 4)
         placeTreasure(2, 2)
@@ -24,44 +18,38 @@ fun main() {
         placeTreasure(5, 4)
         placeTreasureHunter(6, 3)
     }
-    val engine = EvolutionEngine(200, CHROMOSOME_LENGTH, 0.1f, 10) {
+    val checkFunction: (EvolutionStep) -> Boolean = {
+        it.bestFitness.data<Pair<Int, List<Operator>>>().first >= originalWorld.treasureCount
+    }
+    val engine = EvolutionEngine(200, 64, 0.05f, 5, true, checkFunction) {
         val world = originalWorld.pool.take()
 
-        val vm = VirtualMachine(Memory(CHROMOSOME_LENGTH, it.genes))
+        val vm = VirtualMachine(Memory(it.genes.size, it.genes))
         vm.execute()
 
         val path = Path.fromString(vm.programOutput)
         world.reset()
+
         val validPath = world.treasureHunter.move(path)
-
         val fitness = Math.max(0, world.treasureHunter.treasuresCollected * 20 - world.treasureHunter.steps)
-
-        val collected = world.treasureHunter.treasuresCollected
-        val treasures = world.treasureCount
         originalWorld.pool.give(world)
 
-        count++
-        if (count % (1000 * 100) == 0) {
-            println("Generation ${count / 100}: Fitness: $fitness ($collected/$treasures) (Time: ${System.currentTimeMillis() - time} ms) $validPath")
-            time = System.currentTimeMillis()
-        }
-
-        if (fitness > best) {
-            best = fitness
-            println("New best: ${count / 100}: Fitness: $fitness ($collected/$treasures) (Time: ${System.currentTimeMillis() - time} ms) $validPath")
-        }
-
-        if (collected >= treasures && fitness >= 84) {
-            println("Found path ${count / 100}: Fitness: $fitness ($collected/$treasures) (Time: ${System.currentTimeMillis() - time} ms) $validPath")
-            FitnessResult.Success(fitness)
-        } else {
-            FitnessResult.Next(fitness)
-        }
+        it.dataHolder = world.treasureHunter.treasuresCollected to validPath
+        fitness
     }
 
-    val result = engine.stream().maxBy { it.chromosome.fitness }!!
-    val program = Program.parse(result.chromosome.genes)
-    println("Generation: ${result.population.generation}, ${result.chromosome}")
-    println("Time taken: ${System.currentTimeMillis() - startTime} ms")
+    engine.setOnNewBest { generation, chromosome ->
+        val data = chromosome.data<Pair<Int, List<Operator>>>()
+        println("New best: $generation: Fitness: ${chromosome.fitness} (${data.first}/${originalWorld.treasureCount}) ${data.second.joinToString()}")
+    }
+
+    val result = engine.streamPopulation().onEach {
+        if (it.population.generation % 250 == 0) {
+            val data = it.bestFitness.data<Pair<Int, List<Operator>>>()
+            println("Generation ${it.population.generation}: Fitness: ${it.bestFitness} (${data.first}/${originalWorld.treasureCount}) ${data.second.joinToString()}")
+        }
+    }.maxBy { it.bestFitness.fitness }!!
+    val program = Program.parse(result.bestFitness.genes)
+    println("Generation: ${result.population.generation}, ${result.bestFitness}")
     println(program)
 }
